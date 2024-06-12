@@ -1,18 +1,26 @@
+import os
 import streamlit as st
 import pandas as pd
 from PIL import Image
-import os
 
 # Define the path to the Excel file and images folder
-excel_file = 'membership_info.xlsx'
-images_folder = 'C:/Users/LCC/Desktop/APIs/LCCdb/images'
+current_dir = os.path.dirname(os.path.abspath(__file__))
+excel_file = os.path.join(current_dir, 'membership_info.xlsx')
+images_folder = os.path.join(current_dir, 'images')
 
 # Ensure the images folder exists
 os.makedirs(images_folder, exist_ok=True)
 
-# Load the Excel file
+# Load the Excel file and ensure certain columns are treated as strings
 if os.path.exists(excel_file):
-    df = pd.read_excel(excel_file)
+    df = pd.read_excel(excel_file, dtype={
+        'ID': str,
+        'Contact Number 1': str,
+        'Contact Number 2': str,
+        'Emergency Contact Cell': str,
+        'Joined Year': str,
+        'Emergency Contact Name': str
+    })
 else:
     df = pd.DataFrame(columns=[
         "ID", "Last Name", "First Name", "Middle Name", "Date of Birth", "Place of Birth",
@@ -31,35 +39,35 @@ with st.form(key='membership_form'):
     last_name = st.text_input("Last Name")
     first_name = st.text_input("First Name")
     middle_name = st.text_input("Middle Name")
-    
+
     dob = st.text_input("Date of Birth (YYYY-MM-DD)")
     place_of_birth = st.text_input("Place of Birth")
-    
+
     nationality = st.text_input("Nationality")
     age = st.number_input("Age", min_value=0, max_value=120)
     sex = st.radio("Sex", ('Male', 'Female'))
-    
+
     home_address = st.text_input("Home Address")
     contact_number1 = st.text_input("Contact Number 1")
     contact_number2 = st.text_input("Contact Number 2")
-    
+
     position_rank = st.text_input("Position/Rank in LCC")
     occupation = st.text_input("Occupation")
-    
+
     marital_status = st.radio("Marital Status", ['Single', 'Married', 'Divorced', 'Separated'])
     spouse_name = st.text_input("Name of Spouse (if married)")
     date_of_marriage = st.text_input("Date of Marriage (YYYY-MM-DD, if married)")
-    
+
     born_again = st.radio("Are you born again?", ['Yes', 'No'])
     baptized = st.radio("Are you baptized according to Matthew 28:19?", ['Yes', 'No'])
-    
+
     membership_type = st.radio("Type of Membership", ['Full Membership', 'Associate Membership'])
     joined_year = st.text_input("What year did you join the LCC family?")
     email = st.text_input("Email")
-    
+
     emergency_contact_name = st.text_input("Emergency Contact Name")
     emergency_contact_cell = st.text_input("Emergency Contact Cell")
-    
+
     uploaded_file = st.file_uploader("Upload Image", type=['jpg', 'png', 'jpeg'])
 
     if st.form_submit_button("Submit"):
@@ -70,7 +78,7 @@ with st.form(key='membership_form'):
                 image_path = os.path.join(images_folder, uploaded_file.name)
                 with open(image_path, "wb") as f:
                     f.write(uploaded_file.getbuffer())
-            
+
             # Add the new data to the DataFrame
             new_data = pd.DataFrame({
                 "ID": [id_], "Last Name": [last_name], "First Name": [first_name], "Middle Name": [middle_name],
@@ -85,15 +93,34 @@ with st.form(key='membership_form'):
                 "Image Path": [image_path]
             })
             df = pd.concat([df, new_data], ignore_index=True)
-            
+
+            # Ensure certain columns remain strings
+            df['ID'] = df['ID'].astype(str)
+            df['Contact Number 1'] = df['Contact Number 1'].astype(str)
+            df['Contact Number 2'] = df['Contact Number 2'].astype(str)
+            df['Emergency Contact Cell'] = df['Emergency Contact Cell'].astype(str)
+            df['Joined Year'] = df['Joined Year'].astype(str)
+            df['Emergency Contact Name'] = df['Emergency Contact Name'].astype(str)
+
             # Save the DataFrame to the Excel file
-            df.to_excel(excel_file, index=False)
-            
-            st.success("Data submitted successfully!")
+            try:
+                df.to_excel(excel_file, index=False)
+                st.success("Data submitted successfully!")
+            except PermissionError as e:
+                st.error(f"PermissionError: {e}")
+
         else:
             st.error("Please fill in all required fields.")
 
 # Display the DataFrame
+# Ensure certain columns remain strings before displaying
+df['ID'] = df['ID'].astype(str)
+df['Contact Number 1'] = df['Contact Number 1'].astype(str)
+df['Contact Number 2'] = df['Contact Number 2'].astype(str)
+df['Emergency Contact Cell'] = df['Emergency Contact Cell'].astype(str)
+df['Joined Year'] = df['Joined Year'].astype(str)
+df['Emergency Contact Name'] = df['Emergency Contact Name'].astype(str)
+
 st.write("### Membership Information")
 st.dataframe(df)
 
@@ -101,6 +128,8 @@ st.dataframe(df)
 if st.checkbox("Show Images"):
     for index, row in df.iterrows():
         st.write(f"Name: {row['First Name']} {row['Last Name']}, Age: {row['Age']}, Email: {row['Email']}")
-        if row['Image Path']:
+        if isinstance(row['Image Path'], str) and os.path.exists(row['Image Path']):
             image = Image.open(row['Image Path'])
             st.image(image, caption=f"{row['First Name']} {row['Last Name']}", use_column_width=True)
+        else:
+            st.write("No valid image available.")
